@@ -94,11 +94,15 @@ func NewController(
 	// Create event broadcaster
 	// Add sample-controller types to the default Kubernetes Scheme so Events can be
 	// logged for sample-controller types.
+	// 向K8S 注册 CRD 的资源类型
 	utilruntime.Must(samplescheme.AddToScheme(scheme.Scheme))
 	klog.V(4).Info("Creating event broadcaster")
+
+	// 记录"k8s.io/api/core/v1" 事件，汇报到 api
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeclientset.CoreV1().Events("")})
+	// NewRecorder returns an EventRecorder that can be used to send events to this EventBroadcaster 
 	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: controllerAgentName})
 
 	controller := &Controller{
@@ -114,6 +118,7 @@ func NewController(
 
 	klog.Info("Setting up event handlers")
 	// Set up an event handler for when Foo resources change
+	// 把资源事件  添加到 工作队列中，等待后续的 worker协程 处理
 	fooInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.enqueueFoo,
 		UpdateFunc: func(old, new interface{}) {
@@ -163,7 +168,9 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 
 	klog.Info("Starting workers")
 	// Launch two workers to process Foo resources
+	// 开启多个 协程，来处理 informer 收到的 各种事件（存在 工作队列中 ）
 	for i := 0; i < threadiness; i++ {
+		// 周期运行 worker ， 直到 channel 关闭
 		go wait.Until(c.runWorker, time.Second, stopCh)
 	}
 
@@ -185,6 +192,7 @@ func (c *Controller) runWorker() {
 // processNextWorkItem will read a single work item off the workqueue and
 // attempt to process it, by calling the syncHandler.
 func (c *Controller) processNextWorkItem() bool {
+	// informer事件存入 工作队列后，从此 取出 进行处理
 	obj, shutdown := c.workqueue.Get()
 
 	if shutdown {

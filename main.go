@@ -44,6 +44,7 @@ func main() {
 	// set up signals so we handle the first shutdown signal gracefully
 	stopCh := signals.SetupSignalHandler()
 
+	// 通过 配置参数 来生成 K8S的kubeClient
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
 	if err != nil {
 		klog.Fatalf("Error building kubeconfig: %s", err.Error())
@@ -59,7 +60,9 @@ func main() {
 		klog.Fatalf("Error building example clientset: %s", err.Error())
 	}
 
+	// 生成 K8S标准的 informer ， 来监控 K8S的 传统资源
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
+	// 生成 本库封装 的 informer ， 来监控 本库创建的 CRD 资源
 	exampleInformerFactory := informers.NewSharedInformerFactory(exampleClient, time.Second*30)
 
 	controller := NewController(kubeClient, exampleClient,
